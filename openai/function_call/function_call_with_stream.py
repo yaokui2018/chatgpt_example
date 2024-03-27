@@ -46,7 +46,7 @@ def get_weather(city: str, date: str = None):
 
 def gpt_ask_with_stream(messages: list[dict], tools: list[dict]):
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4-0125-preview",
         messages=messages,
         tools=tools,
         tool_choice="auto",
@@ -54,11 +54,17 @@ def gpt_ask_with_stream(messages: list[dict], tools: list[dict]):
     )
     tool_calls = []
     for chunk in response:
+        # print("***", chunk)
         if chunk.choices:
             choice = chunk.choices[0]
             if choice.delta.tool_calls:  # function_calling
                 for idx, tool_call in enumerate(choice.delta.tool_calls):
                     tool = choice.delta.tool_calls[idx]
+
+                    # 2024-03-27 兼容 gpt-4-0125-preview/gpt-4-1106-preview
+                    if tool_call.index:
+                        idx = max(tool_call.index, idx)
+
                     if len(tool_calls) <= idx:
                         tool_calls.append(tool)
                         continue
@@ -68,6 +74,8 @@ def gpt_ask_with_stream(messages: list[dict], tools: list[dict]):
             elif choice.finish_reason:
                 # print(f"choice.finish_reason: {choice.finish_reason}")
                 break
+            elif not choice.delta.content:  # 2024-03-27 兼容 gpt-4-0125-preview/gpt-4-1106-preview（首条chunk无实际数据）
+                continue
             else:  # 普通回答
                 yield ""  # 第一条返回无意义，便于后续检测回复消息类型
                 yield choice.delta.content
